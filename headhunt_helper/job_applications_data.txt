@@ -1,0 +1,24 @@
+Job Applications Data
+====================
+
+1. Test Company
+--------------
+Position: Software Engineer
+Location: New York
+Salary: $100,000
+Status: APPLIED
+Applied Time: 2025-06-17 19:14:25
+Contact: John Doe (john@test.com)
+Notes: Test application
+URL: https://test.com/job
+
+2. Another Company
+-----------------
+Position: Developer
+Location: Boston
+Salary: $120,000
+Status: APPLIED
+Applied Time: 2025-06-17 19:18:28
+Contact: Jane Smith (jane@another.com)
+Notes: Another test
+URL: https://another.com/job 
