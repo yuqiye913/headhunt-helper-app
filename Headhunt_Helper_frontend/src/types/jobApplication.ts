@@ -3,6 +3,7 @@ export interface JobApplication {
   companyName: string;
   position: string;
   jobUrl: string;
+  jobWebsite: string;
   status: 'APPLIED' | 'INTERVIEWING' | 'OFFERED' | 'REJECTED' | 'ACCEPTED';
   appliedTime: string;
   appliedDate: string | null;

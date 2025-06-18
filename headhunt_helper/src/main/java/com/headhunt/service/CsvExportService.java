@@ -15,15 +15,16 @@ public class CsvExportService {
     public void exportToCsv(List<JobApplication> applications) {
         try (FileWriter writer = new FileWriter(CSV_FILE_PATH)) {
             // Write header
-            writer.write("ID,Company Name,Position,Job URL,Status,Applied Time,Location,Salary,Contact Person,Contact Email,Notes\n");
+            writer.write("ID,Company Name,Position,Job URL,Job Website,Status,Applied Time,Location,Salary,Contact Person,Contact Email,Notes\n");
 
             // Write data
             for (JobApplication app : applications) {
-                writer.write(String.format("%d,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n",
+                writer.write(String.format("%d,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n",
                     app.getId(),
                     escapeCsvField(app.getCompanyName()),
                     escapeCsvField(app.getPosition()),
                     escapeCsvField(app.getJobUrl()),
+                    escapeCsvField(app.getJobWebsite()),
                     app.getStatus(),
                     app.getAppliedTime().format(DATE_FORMATTER),
                     escapeCsvField(app.getLocation()),

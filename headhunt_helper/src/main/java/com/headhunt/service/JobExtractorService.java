@@ -2,6 +2,8 @@ package com.headhunt.service;
 
 import com.headhunt.model.JobApplication;
 import com.headhunt.model.ApplicationStatus;
+import com.headhunt.repository.JobApplicationRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
@@ -33,12 +35,40 @@ public class JobExtractorService {
     private static final int URL_MAX_LENGTH = 1000;
     private static final int TEXT_MAX_LENGTH = 255;
 
+    private String extractedUrl; // Add this field to store the extracted URL
+
+    @Autowired
+    private JobApplicationRepository jobApplicationRepository;
+
+
     public JobExtractorService(JobApplicationService jobApplicationService) {
         this.restTemplate = new RestTemplate();
         this.jobApplicationService = jobApplicationService;
     }
 
     private String extractVisibleText(String htmlContent) {
+        // Extract URL from comment if present
+        String url = "Unknown";
+        logger.info("=== STARTING URL EXTRACTION ===");
+        logger.info("HTML content starts with: {}", htmlContent.substring(0, Math.min(200, htmlContent.length())));
+        
+        if (htmlContent.contains("<!-- EXTRACTED_URL:")) {
+            logger.info("Found URL comment marker");
+            int startIndex = htmlContent.indexOf("<!-- EXTRACTED_URL:") + "<!-- EXTRACTED_URL:".length();
+            int endIndex = htmlContent.indexOf("-->", startIndex);
+            
+            logger.info("URL comment position - start: {}, end: {}", startIndex, endIndex);
+            
+            if (endIndex > startIndex) {
+                url = htmlContent.substring(startIndex, endIndex).trim();
+                logger.info("Successfully extracted URL: {}", url);
+            } else {
+                logger.warn("Found URL comment marker but couldn't extract URL - invalid comment format");
+            }
+        } else {
+            logger.warn("No URL comment marker found in HTML content");
+        }
+
         // Remove script and style elements
         String cleanedHtml = htmlContent.replaceAll("<script[^>]*>.*?</script>", "")
                                       .replaceAll("<style[^>]*>.*?</style>", "")
@@ -57,6 +87,10 @@ public class JobExtractorService {
             return visibleText.substring(0, maxChars);
         }
 
+        // Store the URL in a class field for use in parseAndCreateJob
+        this.extractedUrl = url;
+        logger.info("=== URL EXTRACTION COMPLETE ===");
+        logger.info("Final extracted URL: {}", this.extractedUrl);
         return visibleText;
     }
 
@@ -168,13 +202,15 @@ public class JobExtractorService {
             // Extract required fields with defaults
             String companyName = String.valueOf(extractedData.getOrDefault("companyName", "Unknown"));
             String position = String.valueOf(extractedData.getOrDefault("position", "Unknown"));
-            String jobUrl = String.valueOf(extractedData.getOrDefault("jobUrl", "Unknown"));
+            // Use the extracted URL from the HTML comment
+            String jobUrl = this.extractedUrl != null ? this.extractedUrl : String.valueOf(extractedData.getOrDefault("jobUrl", "Unknown"));
 
             // Create and save the job application
             JobApplication application = new JobApplication();
             application.setCompanyName(truncateText(companyName, TEXT_MAX_LENGTH, "companyName"));
             application.setPosition(truncateText(position, TEXT_MAX_LENGTH, "position"));
             application.setJobUrl(truncateText(jobUrl, URL_MAX_LENGTH, "jobUrl"));
+            application.setJobWebsite(truncateText(this.extractedUrl, URL_MAX_LENGTH, "jobWebsite"));
             application.setStatus(ApplicationStatus.APPLIED);
             application.setLocation(truncateText(String.valueOf(extractedData.get("location")), TEXT_MAX_LENGTH, "location"));
             application.setSalary(truncateText(String.valueOf(extractedData.get("salary")), TEXT_MAX_LENGTH, "salary"));
@@ -189,6 +225,7 @@ public class JobExtractorService {
             extractedData.put("id", savedApplication.getId());
             extractedData.put("status", savedApplication.getStatus());
             extractedData.put("appliedTime", savedApplication.getAppliedTime());
+            extractedData.put("url", this.extractedUrl); // Add the extracted URL to the response
 
             // Add validation status to response
             extractedData.put("validation", Map.of(
@@ -202,5 +239,9 @@ public class JobExtractorService {
             logger.error("Failed to parse job information: {}", e.getMessage(), e);
             throw new RuntimeException("Failed to parse job information: " + e.getMessage());
         }
+    }
+
+    public String getExtractedUrl() {
+        return extractedUrl;
     }
 } 

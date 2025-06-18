@@ -23,6 +23,9 @@ public class JobApplication {
     @Column(nullable = false, length = 1000)
     private String jobUrl;
 
+    @Column(length = 1000)
+    private String jobWebsite;
+
     @Column(nullable = false)
     @Enumerated(EnumType.STRING)
     private ApplicationStatus status;

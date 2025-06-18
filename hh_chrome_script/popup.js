@@ -80,20 +80,29 @@ document.addEventListener('DOMContentLoaded', function() {
     extractButton.addEventListener('click', function() {
         showLoading();
         
-        // Send message to background script
-        chrome.runtime.sendMessage({action: 'extractJobInfo'}, function(response) {
-            hideLoading();
-            
-            if (chrome.runtime.lastError) {
-                displayError('Failed to communicate with the extension. Please try again.');
+        // Get the active tab
+        chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
+            if (!tabs[0]) {
+                hideLoading();
+                displayError('No active tab found');
                 return;
             }
 
-            if (response.status === 'success') {
-                displayResult(response.data);
-            } else {
-                displayError(response.message || 'Failed to extract job information');
-            }
+            // Send message directly to content script
+            chrome.tabs.sendMessage(tabs[0].id, {action: 'extractJobInfo'}, function(response) {
+                hideLoading();
+                
+                if (chrome.runtime.lastError) {
+                    displayError('Failed to communicate with the page. Please refresh and try again.');
+                    return;
+                }
+
+                if (response.status === 'success') {
+                    displayResult(response.data);
+                } else {
+                    displayError(response.message || 'Failed to extract job information');
+                }
+            });
         });
     });
 }); 

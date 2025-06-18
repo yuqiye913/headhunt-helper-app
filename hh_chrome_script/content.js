@@ -1,96 +1,90 @@
-// This script runs in the context of web pages
+// Content script for web page HTML extraction
 console.log('Content script loaded!');
 
-// Function to get the full HTML content of the page
+// Function to capture page HTML with URL and tags
 function getPageHtml() {
-    const html = document.documentElement.outerHTML;
-    console.log('HTML Content Length:', html.length);
-    console.log('HTML Content Preview:', html.substring(0, 500) + '...');
-    return html;
+  const html = document.documentElement.outerHTML;
+  const url = window.location.href;
+  const title = document.title;
+  
+  console.log('=== HTML CONTENT CAPTURE ===');
+  console.log('URL to inject:', url);
+  console.log('Title:', title);
+  console.log('HTML Content Length:', html.length);
+  
+  const urlPrefix = `<!-- EXTRACTED_URL: ${url} -->\n`;
+  console.log('URL prefix to inject:', urlPrefix);
+  
+  const fullContent = urlPrefix + html;
+  console.log('First 200 chars of final content:', fullContent.substring(0, 200));
+  
+  return {
+    html: fullContent,
+    url,
+    title,
+    timestamp: new Date().toISOString()
+  };
 }
 
-// Function to send HTML content to the server
-async function sendHtmlToServer(htmlContent) {
-    try {
-        // Get the extension's ID
-        const extensionId = chrome.runtime.id;
-        const extensionOrigin = `chrome-extension://${extensionId}`;
-        
-        console.log('=== REQUEST DETAILS ===');
-        console.log('URL:', 'http://localhost:8080/api/applications/html');
-        console.log('Method:', 'POST');
-        console.log('Extension Origin:', extensionOrigin);
-        console.log('Headers:', {
-            'Content-Type': 'text/plain',
-            'Accept': 'application/json',
-            'Origin': extensionOrigin
-        });
-        console.log('Body Length:', htmlContent.length);
-        console.log('Body Preview:', htmlContent.substring(0, 500) + '...');
-        console.log('=====================');
+// Function to send data to server
+async function sendToServer(data) {
+  try {
+    const extensionId = chrome.runtime.id;
+    const extensionOrigin = `chrome-extension://${extensionId}`;
+    
+    console.log('=== SENDING TO SERVER ===');
+    console.log('URL: http://localhost:8080/api/applications/html');
+    console.log('Method: POST');
+    console.log('Origin:', extensionOrigin);
+    
+    const response = await fetch('http://localhost:8080/api/applications/html', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Origin': extensionOrigin
+      },
+      body: JSON.stringify(data)
+    });
 
-        // Main request
-        const response = await fetch('http://localhost:8080/api/applications/html', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'text/plain',
-                'Accept': 'application/json',
-                'Origin': extensionOrigin
-            },
-            body: htmlContent
-        });
-        
-        console.log('=== RESPONSE DETAILS ===');
-        console.log('Status:', response.status);
-        console.log('Status Text:', response.statusText);
-        console.log('Headers:', Object.fromEntries(response.headers.entries()));
-        
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.log('Error Response:', errorText);
-            throw new Error(`Server responded with ${response.status}: ${errorText}`);
-        }
-        
-        const data = await response.json();
-        console.log('Response Data:', data);
-        console.log('=====================');
-        
-        return {
-            status: 'success',
-            data: data
-        };
-    } catch (error) {
-        console.error('=== ERROR DETAILS ===');
-        console.error('Error Type:', error.name);
-        console.error('Error Message:', error.message);
-        console.error('Error Stack:', error.stack);
-        
-        // Check if it's a network error
-        if (error.name === 'TypeError' && error.message === 'Failed to fetch') {
-            console.error('Network Error Details:');
-            console.error('- Check if the server is running at http://localhost:8080');
-            console.error('- Check if CORS is properly configured on the server');
-            console.error('- Check if the server is accessible from the browser');
-            console.error('- Extension Origin:', chrome.runtime.id);
-        }
-        
-        console.error('===================');
-        
-        return {
-            status: 'error',
-            message: `Failed to connect to server: ${error.message}. Please ensure the server is running at http://localhost:8080`
-        };
+    console.log('=== SERVER RESPONSE ===');
+    console.log('Status:', response.status, response.statusText);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Server Error:', errorText);
+      throw new Error(`Server error ${response.status}: ${errorText}`);
     }
+
+    const responseData = await response.json();
+    console.log('Response Data:', responseData);
+    
+    return { status: 'success', data: responseData };
+    
+  } catch (error) {
+    console.error('=== REQUEST ERROR ===');
+    console.error('Type:', error.name);
+    console.error('Message:', error.message);
+    
+    if (error.name === 'TypeError' && error.message === 'Failed to fetch') {
+      console.error('Network issue - check if server is running on localhost:8080');
+    }
+    
+    return {
+      status: 'error',
+      message: `Server connection failed: ${error.message}`
+    };
+  }
 }
 
-// Listen for messages from the background script
+// Listen for requests from popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    if (request.action === 'getHtmlContent') {
-        console.log('=== GETTING HTML CONTENT ===');
-        const html = getPageHtml();
-        console.log('Sending HTML content to background script');
-        console.log('=====================');
-        sendResponse({ html: html });
-    }
-    return true; // Will respond asynchronously
-}); 
+  if (request.action === 'extractJobInfo') {
+    console.log('=== CAPTURING PAGE CONTENT ===');
+    
+    const data = getPageHtml();
+    sendToServer(data).then(sendResponse);
+    
+    return true; // Keep the message channel open for async response
+  }
+});
